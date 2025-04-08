@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.example.photogalleryapp.ui.viewmodel.PhotoDetailViewModel
 import kotlinx.coroutines.launch
@@ -69,79 +70,41 @@ fun PhotoDetailScreen(
     var offsetY by remember { mutableStateOf(0f) }
     val animatedScale by animateFloatAsState(scale, label = "scale")
 
-    LaunchedEffect(photo?.id) {
-        scale = 1f; offsetX = 0f; offsetY = 0f
-    }
+    LaunchedEffect(photo?.id) { scale = 1f; offsetX = 0f; offsetY = 0f }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(photo?.title ?: "Photo Detail") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text(photo?.title ?: "Photo Detail") },
+            navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
+            actions = { IconButton(onClick = { viewModel.toggleFavorite() }) { Icon(if (photo?.isFavorite == true) Icons.Default.Favorite else Icons.Default.FavoriteBorder, null) } }
+        )
+    }) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            photo?.let { current ->
+                Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 3f)
+                        if (scale > 1f) { offsetX += pan.x; offsetY += pan.y }
                     }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.toggleFavorite() }) {
-                        Icon(
-                            if (photo?.isFavorite == true) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Toggle Favorite"
-                        )
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Box(Modifier.fillMaxSize().padding(paddingValues)) {
-            photo?.let { currentPhoto ->
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black)
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(1f, 3f)
-                                if (scale > 1f) {
-                                    offsetX += pan.x; offsetY += pan.y
-                                }
-                            }
-                        }
-                ) {
+                }) {
                     SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(currentPhoto.uri)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Full photo",
+                        model = ImageRequest.Builder(context).data(current.uri).crossfade(true).build(),
+                        contentDescription = null,
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize().graphicsLayer {
-                            scaleX = animatedScale; scaleY = animatedScale
-                            translationX = offsetX; translationY = offsetY
+                            scaleX = animatedScale; scaleY = animatedScale; translationX = offsetX; translationY = offsetY
                         }
                     ) {
-                        when (val s = painter.state) {
+                        when (painter.state) {
                             is AsyncImagePainter.State.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                            is AsyncImagePainter.State.Error -> {
-                                Log.e("Coil‑Error", "Full image load failed ${currentPhoto.uri}", s.result.throwable)
-                                Icon(Icons.Default.BrokenImage, null, tint = Color.Red,
-                                    modifier = Modifier.size(48.dp).align(Alignment.Center))
-                            }
-                            else -> Unit
+                            is AsyncImagePainter.State.Error -> Icon(Icons.Default.BrokenImage, null, tint = Color.Red, modifier = Modifier.align(Alignment.Center))
+                            else -> SubcomposeAsyncImageContent()
                         }
                     }
                 }
-
-                Row(
-                    Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Button(onClick = { viewModel.getPreviousPhotoId()?.let(onNavigateToPhoto) }, enabled = hasPrevious) {
-                        Text("Previous")
-                    }
-                    Button(onClick = { viewModel.getNextPhotoId()?.let(onNavigateToPhoto) }, enabled = hasNext) {
-                        Text("Next")
-                    }
+                Row(Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Button(onClick = { viewModel.getPreviousPhotoId()?.let(onNavigateToPhoto) }, enabled = hasPrevious) { Text("Previous") }
+                    Button(onClick = { viewModel.getNextPhotoId()?.let(onNavigateToPhoto) }, enabled = hasNext) { Text("Next") }
                 }
             } ?: CircularProgressIndicator(Modifier.align(Alignment.Center))
         }

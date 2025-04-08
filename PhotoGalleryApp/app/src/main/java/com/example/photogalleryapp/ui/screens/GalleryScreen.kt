@@ -13,7 +13,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -33,6 +32,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.example.photogalleryapp.ui.components.PhotoActionDialog
 import com.example.photogalleryapp.ui.viewmodel.GalleryViewModel
@@ -59,44 +59,19 @@ fun GalleryScreen(
     var selectedPhotoId by remember { mutableStateOf("") }
     var showFabMenu by remember { mutableStateOf(false) }
 
-    /* --------------------------------------------------------
-     * Runtime permission launcher (Step 4)
-     * -------------------------------------------------------- */
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) {
-            // you could show a snackbar here
-            Log.w("GalleryScreen", "READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE not granted")
-        }
+    /* ---------- runtime permission (API 33+) ---------- */
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) Log.w("GalleryScreen", "Storage permission not granted – images may not load")
     }
-
     LaunchedEffect(Unit) {
-        val permission = if (Build.VERSION.SDK_INT >= 33) {
-            Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-        if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
-            permissionLauncher.launch(permission)
-        }
+        val perm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
+        if (ContextCompat.checkSelfPermission(context, perm) != PackageManager.PERMISSION_GRANTED) permissionLauncher.launch(perm)
     }
 
-    /* --------------------------------------------------------
-     * Image picker using OpenDocument (Step 3)
-     * -------------------------------------------------------- */
-    val pickImageLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
+    /* ---------- picker with persistable permission ---------- */
+    val pickImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
-
-        // Persist read permission so Coil can reopen the URI later
-        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-        try {
-            context.contentResolver.takePersistableUriPermission(uri, flags)
-        } catch (t: Throwable) {
-            Log.e("GalleryScreen", "takePersistableUriPermission failed for $uri", t)
-        }
+        try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Throwable) {}
         viewModel.addPhoto(uri)
     }
 
@@ -104,91 +79,44 @@ fun GalleryScreen(
         topBar = { TopAppBar(title = { Text("Photo Gallery") }) },
         floatingActionButton = {
             if (showFabMenu) {
-                Row(
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    SmallFloatingActionButton(onClick = { pickImageLauncher.launch(arrayOf("image/*")) }) {
-                        Icon(Icons.Default.PhotoLibrary, contentDescription = "Choose from gallery")
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SmallFloatingActionButton(onClick = { pickImageLauncher.launch(arrayOf("image/*")) }) { Icon(Icons.Default.PhotoLibrary, null) }
                     Spacer(Modifier.width(8.dp))
-                    SmallFloatingActionButton(onClick = onCameraClick) {
-                        Icon(Icons.Default.Camera, contentDescription = "Take photo")
-                    }
+                    SmallFloatingActionButton(onClick = onCameraClick) { Icon(Icons.Default.Camera, null) }
                     Spacer(Modifier.width(8.dp))
-                    FloatingActionButton(onClick = { showFabMenu = false }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close menu")
-                    }
+                    FloatingActionButton(onClick = { showFabMenu = false }) { Icon(Icons.Default.Close, null) }
                 }
             } else {
-                FloatingActionButton(onClick = { showFabMenu = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Open menu")
-                }
+                FloatingActionButton(onClick = { showFabMenu = true }) { Icon(Icons.Default.Add, null) }
             }
         }
-    ) { paddingValues ->
-        Box(Modifier.fillMaxSize().padding(paddingValues)) {
-            /* Debug counter – remove when happy */
-            Text("Photo count = ${photos.size}", Modifier.align(Alignment.TopCenter))
-
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 128.dp),
+                columns = GridCells.Adaptive(128.dp),
                 contentPadding = PaddingValues(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(photos, key = { it.id }) { photo ->
-                    Box(
-                        Modifier
-                            .size(128.dp)
-                            .combinedClickable(
-                                onClick = { onPhotoClick(photo.id) },
-                                onLongClick = {
-                                    selectedPhotoId = photo.id
-                                    showPhotoActionDialog = true
-                                }
-                            )
-                    ) {
+                    Box(Modifier.size(128.dp).combinedClickable(
+                        onClick = { onPhotoClick(photo.id) },
+                        onLongClick = { selectedPhotoId = photo.id; showPhotoActionDialog = true }
+                    )) {
                         SubcomposeAsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(photo.uri)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "Photo thumbnail",
+                            model = ImageRequest.Builder(context).data(photo.uri).crossfade(true).build(),
+                            contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            when (val s = painter.state) {
-                                is AsyncImagePainter.State.Loading -> {
-                                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                                }
-                                is AsyncImagePainter.State.Error -> {
-                                    Log.e("Coil‑Error", "Thumbnail load failed ${photo.uri}", s.result.throwable)
-                                    Icon(Icons.Default.BrokenImage, null,
-                                        tint = Color.Red, modifier = Modifier
-                                            .size(32.dp)
-                                            .align(Alignment.Center))
-                                }
-                                else -> Unit
+                            when (painter.state) {
+                                is AsyncImagePainter.State.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                                is AsyncImagePainter.State.Error -> Icon(Icons.Default.BrokenImage, null, tint = Color.Red, modifier = Modifier.align(Alignment.Center))
+                                else -> SubcomposeAsyncImageContent() // draw bitmap
                             }
-                            LaunchedEffect(painter.state) {
-                                if (painter.state is AsyncImagePainter.State.Success) {
-                                    Log.d("Coil‑OK", "Rendered ${photo.uri}")
-                                }
-                            }
-
                         }
-
-
-                        AnimatedVisibility(
-                            visible = photo.isFavorite,
-                            enter = fadeIn(tween(300)),
-                            exit = fadeOut(tween(300)),
-                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
-                        ) {
-                            Badge(containerColor = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Favorite, contentDescription = "Favorite", tint = Color.White, modifier = Modifier.size(16.dp))
-                            }
+                        AnimatedVisibility(photo.isFavorite, enter = fadeIn(tween(300)), exit = fadeOut(tween(300)), modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                            Badge { Icon(Icons.Default.Favorite, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
                         }
                     }
                 }
@@ -197,14 +125,8 @@ fun GalleryScreen(
             if (showPhotoActionDialog) {
                 PhotoActionDialog(
                     onDismiss = { showPhotoActionDialog = false },
-                    onDelete = {
-                        viewModel.deletePhoto(selectedPhotoId)
-                        showPhotoActionDialog = false
-                    },
-                    onToggleFavorite = {
-                        viewModel.toggleFavorite(selectedPhotoId)
-                        showPhotoActionDialog = false
-                    }
+                    onDelete = { viewModel.deletePhoto(selectedPhotoId); showPhotoActionDialog = false },
+                    onToggleFavorite = { viewModel.toggleFavorite(selectedPhotoId); showPhotoActionDialog = false }
                 )
             }
         }
