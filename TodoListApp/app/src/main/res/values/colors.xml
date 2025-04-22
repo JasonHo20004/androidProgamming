@@ -7,4 +7,22 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="primary">#6200EE</color>
+    <color name="primary_dark">#3700B3</color>
+    <color name="primary_light">#BB86FC</color>
+    <color name="accent">#03DAC5</color>
+    <color name="background_light">#F5F7FA</color>
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="divider">#EEEEEE</color>
+
+    <!-- Task priority colors -->
+    <color name="priority_high">#F44336</color>
+    <color name="priority_medium">#FB8C00</color>
+    <color name="priority_low">#4CAF50</color>
+
+    <!-- Priority Background Colors (lighter shades) -->
+    <color name="priority_high_bg">#FFF8F8</color>
+    <color name="priority_medium_bg">#FFF8F0</color>
+    <color name="priority_low_bg">#F0F8F0</color>
 </resources>
