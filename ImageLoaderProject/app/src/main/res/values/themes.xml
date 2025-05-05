@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Light/dark handled by DayNight -->
+    <style name="Theme.ImageLoader" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize colors or leave empty -->
+        <item name="android:statusBarColor">?attr/colorPrimary</item>
+        <item name="android:navigationBarColor">?attr/colorPrimary</item>
+    </style>
+
+</resources>
